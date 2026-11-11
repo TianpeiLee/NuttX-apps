@@ -21,6 +21,8 @@
 ############################################################################
 
 export APPDIR = $(CURDIR)
+APPDIR ?= $(abspath $(dir $(firstword $(MAKEFILE_LIST))))
+
 include $(APPDIR)/Make.defs
 include $(APPDIR)/tools/Wasm.mk
 

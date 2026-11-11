@@ -1,0 +1,16 @@
+#
+# For a description of the syntax of this configuration file,
+# see the file kconfig-language.txt in the NuttX tools repository.
+#
+
+config EXAMPLES_SELFTEST
+	tristate "Headless board driver self test (RAM log)"
+	default n
+	---help---
+		Runs the board driver self tests automatically at boot and
+		appends PASS/FAIL lines to a RAM log buffer (g_testlog) that
+		a debugger reads back over OpenOCD/JTAG.  Also starts PWM,
+		arms the capture, toggles GPIOs and finally lets the IWDG
+		reset the board once to prove the watchdog path.  Designed
+		for the headless bring-up workflow when the serial console
+		is unavailable.

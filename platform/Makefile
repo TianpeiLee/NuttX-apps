@@ -20,7 +20,20 @@
 #
 ############################################################################
 
+APPDIR ?= $(abspath $(dir $(firstword $(MAKEFILE_LIST)))/..)
+
 include $(APPDIR)/Make.defs
+
+# When invoked bare (the %/.dirlinks pattern rule passes no variables)
+# the NuttX Make.defs have not been parsed and CONFIG_ARCH_BOARD is
+# empty; read it from the NuttX .config so the dirlink still resolves.
+
+ifeq ($(CONFIG_ARCH_BOARD),)
+  CONFIG_ARCH_BOARD := $(shell grep -s -m1 -E '^CONFIG_ARCH_BOARD=' $(APPDIR)/../NuttX/.config 2>/dev/null | cut -d'"' -f2)
+endif
+ifeq ($(CONFIG_ARCH_BOARD),)
+  CONFIG_ARCH_BOARD := $(shell grep -s -m1 -E '^CONFIG_ARCH_BOARD_' $(APPDIR)/../NuttX/boards/risc-v/ch32h41x/ch32h41x-evb/configs/nsh/defconfig 2>/dev/null | sed -e 's/^CONFIG_ARCH_BOARD_//' -e 's/=y//')
+endif
 
 CONFIG_ARCH_BOARD ?= dummy
 
