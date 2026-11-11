@@ -1,0 +1,13 @@
+#
+# For a description of the syntax of this configuration file,
+# see the file kconfig-language.txt in the NuttX tools repository.
+#
+
+config EXAMPLES_TIMLOOP
+	tristate "TIM PWM->jumper->capture loopback self-test"
+	default n
+	---help---
+		One-command closed-loop test: starts 1 kHz / 50 % PWM on
+		/dev/pwm0 (TIM1_CH2, PE11) and measures it through the
+		capture device /dev/capture0 (TIM2_CH1, PA0).  Requires the
+		board jumper PE11 -> PA0.  Prints PASS/FAIL.
