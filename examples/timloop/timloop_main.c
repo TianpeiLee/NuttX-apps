@@ -5,9 +5,10 @@
  *
  * One-command closed-loop self test for the CH32H417 timer I/O path:
  *
- *   TIM1_CH2 (PE11) runs 1 kHz / 50 % PWM.  The board jumper PE11 -> PA0
+ *   TIM1_CH1 (PA8) runs 1 kHz / 50 % PWM.  The board jumper PA8 -> PA0
  *   feeds that signal into TIM2_CH1, whose capture driver measures the
- *   frequency.  The jumper must be in place before running this command.
+ *   frequency and duty.  The jumper must be in place before running this
+ *   command.
  *
  * Requires: CONFIG_CH32H41X_HAVE_TIM1_PWM and
  *           CONFIG_CH32H41X_HAVE_TIM2_CAPTURE.
@@ -20,6 +21,7 @@
 #include <nuttx/config.h>
 
 #include <stdio.h>
+#include <stdlib.h>
 #include <unistd.h>
 #include <fcntl.h>
 #include <sys/ioctl.h>
@@ -34,7 +36,8 @@
 
 #define LOOP_FREQ_HZ      1000
 #define LOOP_DUTY_PERCENT 50
-#define LOOP_SAMPLES      60
+#define LOOP_SAMPLES      10
+#define LOOP_DUTY_TOL     5   /* duty tolerance, percent */
 
 /****************************************************************************
  * Public Functions
@@ -51,9 +54,34 @@ int main(int argc, FAR char *argv[])
   int pass = 0;
   unsigned long prev_edges = 0;
 
-  /* Start the PWM output: 1 kHz, 50 % on hardware channel 2 (PE11) */
+  /* Optional duty override: timloop [<duty_percent>] */
 
-  pfd = open("/dev/pwm0", O_RDONLY);
+  int duty_pct = LOOP_DUTY_PERCENT;
+  FAR const char *devname = "/dev/pwm0";
+
+  if (argc > 1)
+    {
+      duty_pct = atoi(argv[1]);
+      if (duty_pct < 1 || duty_pct > 99)
+        {
+          printf("timloop: duty %d out of range (1..99)\n", duty_pct);
+          return 1;
+        }
+    }
+
+  if (argc > 2)
+    {
+      devname = argv[2];
+    }
+
+  /* Duty check window around the requested duty */
+
+  int duty_lo = duty_pct - LOOP_DUTY_TOL;
+  int duty_hi = duty_pct + LOOP_DUTY_TOL;
+
+  /* Start the PWM output: 1 kHz at the requested duty on PA8 (TIM1_CH1) */
+
+  pfd = open(devname, O_RDONLY);
   if (pfd < 0)
     {
       printf("timloop: open /dev/pwm0 failed: %d\n", errno);
@@ -64,9 +92,9 @@ int main(int argc, FAR char *argv[])
   info.frequency = LOOP_FREQ_HZ;
 #ifdef CONFIG_PWM_MULTICHAN
   info.channels[0].channel = 1;
-  info.channels[0].duty = (LOOP_DUTY_PERCENT * 65536) / 100;
+  info.channels[0].duty = (duty_pct * 65536) / 100;
 #else
-  info.duty = (LOOP_DUTY_PERCENT * 65536) / 100;
+  info.duty = (duty_pct * 65536) / 100;
 #endif
 
   ret = ioctl(pfd, PWMIOC_SETCHARACTERISTICS,
@@ -86,8 +114,8 @@ int main(int argc, FAR char *argv[])
       return 1;
     }
 
-  printf("timloop: PWM started: %d Hz %d %% on PA8 (TIM1_CH1)\n",
-         LOOP_FREQ_HZ, LOOP_DUTY_PERCENT);
+  printf("timloop: PWM started: %d Hz %d %% on %s\n",
+         LOOP_FREQ_HZ, duty_pct, devname);
 
   /* Arm the capture */
 
@@ -121,17 +149,22 @@ int main(int argc, FAR char *argv[])
 
       prev_edges = cap.edges;
 
-      printf("timloop: sample %d: edges=%lu (+%lu/s)\n",
-             i, (unsigned long)cap.edges, delta);
+      printf("timloop: sample %d: freq=%lu Hz duty=%u %% edges=%lu (+%lu/s)\n",
+             i, (unsigned long)cap.freq, cap.duty,
+             (unsigned long)cap.edges, delta);
 
-      /* The measured frequency within tolerance of the nominal 1 kHz
-       * means the whole PWM -> jumper -> capture loop is working. */
+      /* ~1000 rising edges per second at ~50 % duty means the whole
+       * PWM -> jumper -> capture loop is working, both edges (frequency)
+       * and pulse width (duty). */
 
-      /* ~1000 rising edges per second means the whole PWM ->
-       * jumper -> capture loop is working. */
+      /* Sample 0 only establishes the edges baseline (its window also
+       * contains edges produced before the loop started), so judge
+       * frequency and duty from sample 1 on. */
 
-      if (delta > LOOP_FREQ_HZ - LOOP_FREQ_HZ / 10 &&
-          delta < LOOP_FREQ_HZ + LOOP_FREQ_HZ / 10)
+      if (i > 0 &&
+          delta > LOOP_FREQ_HZ - LOOP_FREQ_HZ / 10 &&
+          delta < LOOP_FREQ_HZ + LOOP_FREQ_HZ / 10 &&
+          (int)cap.duty >= duty_lo && (int)cap.duty <= duty_hi)
         {
           pass++;
         }
@@ -142,10 +175,10 @@ int main(int argc, FAR char *argv[])
   ioctl(pfd, PWMIOC_STOP, 0);
   close(pfd);
 
-  if (pass > LOOP_SAMPLES / 2)
+  if (pass >= LOOP_SAMPLES - 1)
     {
-      printf("timloop: PASS (%d/%d samples measured ~%d Hz)\n",
-             pass, LOOP_SAMPLES, LOOP_FREQ_HZ);
+      printf("timloop: PASS (%d/%d samples at ~%d Hz ~%d %% on %s)\n",
+             pass, LOOP_SAMPLES - 1, LOOP_FREQ_HZ, duty_pct, devname);
       return 0;
     }
 

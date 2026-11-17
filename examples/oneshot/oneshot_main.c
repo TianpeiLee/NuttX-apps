@@ -176,6 +176,14 @@ int main(int argc, FAR char *argv[])
 
   signal(CONFIG_EXAMPLES_ONESHOT_SIGNO, SIG_IGN);
 
+  /* Block the signal so expirations that occur before the task
+   * reaches sigwaitinfo() stay pending instead of being discarded
+   * (with SIG_IGN there is no action to queue an unmasked signal). */
+
+  sigemptyset(&set);
+  sigaddset(&set, CONFIG_EXAMPLES_ONESHOT_SIGNO);
+  sigprocmask(SIG_BLOCK, &set, NULL);
+
   /* Loop waiting until the full delay expires */
 
   while (usecs > 0)
