@@ -1,0 +1,44 @@
+#
+# For a description of the format see the documentation file named
+# "README.txt" in the apps root directory.
+#
+
+config TESTING_FPUTEST
+	bool "FPU test"
+	default n
+	---help---
+		This test verifies single precision floating point arithmetic
+		correctness and, more importantly, FPU context-switch integrity
+		across concurrent threads (each thread keeps an independent set
+		of FP accumulators and validates them against exact expected
+		values throughout the run).
+
+if TESTING_FPUTEST
+
+config TESTING_FPUTEST_PROGNAME
+	string "fputest program name"
+	default "fputest"
+	---help---
+		This is the name of the program that will be used when the NSH
+		builtin is registered.
+
+config TESTING_FPUTEST_PRIORITY
+	int "fputest task priority"
+	default 100
+
+config TESTING_FPUTEST_STACKSIZE
+	int "fputest stack size"
+	default 4096
+
+config TESTING_FPUTEST_THREADS
+	int "Number of concurrent FP threads"
+	default 3
+	---help---
+		Number of threads that run FP accumulation loops concurrently,
+		forcing FP context switches between them.
+
+config TESTING_FPUTEST_ITERATIONS
+	int "Accumulation iterations per thread"
+	default 200000
+
+endif

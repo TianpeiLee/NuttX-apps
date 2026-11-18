@@ -1,0 +1,9 @@
+############################################################################
+# apps/testing/fputest/Make.defs
+#
+# SPDX-License-Identifier: Apache-2.0
+############################################################################
+
+ifneq ($(CONFIG_TESTING_FPUTEST),)
+CONFIGURED_APPS += $(APPDIR)/testing/fputest
+endif
